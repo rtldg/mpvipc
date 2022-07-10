@@ -23,7 +23,7 @@ pub enum Event {
     MetadataUpdate,
     Seek,
     PlaybackRestart,
-    PropertyChange { id: isize, property: Property },
+    PropertyChange { id: usize, property: Property },
     ChapterChange,
     Unimplemented,
 }
@@ -52,6 +52,10 @@ pub enum MpvCommand {
         from: usize,
         to: usize,
     },
+    Observe {
+        id: usize,
+        property: String
+    },
     PlaylistNext,
     PlaylistPrev,
     PlaylistRemove(usize),
@@ -62,6 +66,7 @@ pub enum MpvCommand {
         option: SeekOptions,
     },
     Stop,
+    Unobserve(usize),
 }
 
 #[derive(Debug)]
@@ -405,8 +410,15 @@ impl Mpv {
         self.run_command(MpvCommand::PlaylistNext)
     }
 
-    pub fn observe_property(&self, id: &isize, property: &str) -> Result<(), Error> {
-        observe_mpv_property(self, id, property)
+    pub fn observe_property(&self, id: usize, property: &str) -> Result<(), Error> {
+        self.run_command(MpvCommand::Observe {
+            id: id,
+            property: property.to_string(),
+        })
+    }
+
+    pub fn unobserve_property(&self, id: usize) -> Result<(), Error> {
+        self.run_command(MpvCommand::Unobserve(id))
     }
 
     pub fn pause(&self) -> Result<(), Error> {
@@ -474,6 +486,9 @@ impl Mpv {
                     },
                 ],
             ),
+            MpvCommand::Observe { id, property } => {
+                observe_mpv_property(self, &id, &property)
+            }
             MpvCommand::PlaylistClear => run_mpv_command(self, "playlist-clear", &[]),
             MpvCommand::PlaylistMove { from, to } => {
                 run_mpv_command(self, "playlist-move", &[&from.to_string(), &to.to_string()])
@@ -499,6 +514,9 @@ impl Mpv {
                 ],
             ),
             MpvCommand::Stop => run_mpv_command(self, "stop", &[]),
+            MpvCommand::Unobserve(id) => {
+                unobserve_mpv_property(self, &id)
+            }
         }
     }
 

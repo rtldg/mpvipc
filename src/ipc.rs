@@ -257,7 +257,7 @@ pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(
     }
 }
 
-pub fn observe_mpv_property(instance: &Mpv, id: &isize, property: &str) -> Result<(), Error> {
+pub fn observe_mpv_property(instance: &Mpv, id: &usize, property: &str) -> Result<(), Error> {
     let ipc_string = format!(
         "{{ \"command\": [\"observe_property\", {}, \"{}\"] }}\n",
         id, property
@@ -278,7 +278,25 @@ pub fn observe_mpv_property(instance: &Mpv, id: &isize, property: &str) -> Resul
     }
 }
 
-fn try_convert_property(name: &str, id: isize, data: MpvDataType) -> Event {
+pub fn unobserve_mpv_property(instance: &Mpv, id: &usize) -> Result<(), Error> {
+    let ipc_string = format!("{{ \"command\": [\"unobserve_property\", {}] }}\n", id);
+    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
+        Ok(feedback) => {
+            if let Value::String(ref error) = feedback["error"] {
+                if error == "success" {
+                    Ok(())
+                } else {
+                    Err(Error(ErrorCode::MpvError(error.to_string())))
+                }
+            } else {
+                Err(Error(ErrorCode::UnexpectedResult))
+            }
+        }
+        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
+    }
+}
+
+fn try_convert_property(name: &str, id: usize, data: MpvDataType) -> Event {
     let property = match name {
         "path" => match data {
             MpvDataType::String(value) => Property::Path(Some(value)),
@@ -375,7 +393,7 @@ pub fn listen(instance: &mut Mpv) -> Result<Event, Error> {
                     }
                     "property-change" => {
                         let name: String;
-                        let id: isize;
+                        let id: usize;
                         let data: MpvDataType;
 
                         if let Value::String(ref n) = e["name"] {
@@ -385,7 +403,7 @@ pub fn listen(instance: &mut Mpv) -> Result<Event, Error> {
                         }
 
                         if let Value::Number(ref n) = e["id"] {
-                            id = n.as_i64().unwrap() as isize;
+                            id = n.as_i64().unwrap() as usize;
                         } else {
                             id = 0;
                         }
