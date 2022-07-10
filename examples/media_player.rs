@@ -14,15 +14,15 @@ fn seconds_to_hms(total: f64) -> String {
 fn main() -> Result<(), Error> {
     env_logger::init();
 
-    let mut mpv = Mpv::connect("/tmp/mpvsocket")?;
+    let mut mpv = Mpv::connect("/tmp/mpv.sock")?;
     let mut pause = false;
     let mut playback_time = std::f64::NAN;
     let mut duration = std::f64::NAN;
-    mpv.observe_property(&1, "path")?;
-    mpv.observe_property(&2, "pause")?;
-    mpv.observe_property(&3, "playback-time")?;
-    mpv.observe_property(&4, "duration")?;
-    mpv.observe_property(&5, "metadata")?;
+    mpv.observe_property(1, "path")?;
+    mpv.observe_property(2, "pause")?;
+    mpv.observe_property(3, "playback-time")?;
+    mpv.observe_property(4, "duration")?;
+    mpv.observe_property(5, "metadata")?;
     loop {
         let event = mpv.event_listen()?;
         match event {

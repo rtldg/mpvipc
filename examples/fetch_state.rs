@@ -4,7 +4,7 @@ use mpvipc::{Error as MpvError, Mpv};
 fn main() -> Result<(), MpvError> {
     env_logger::init();
 
-    let mpv = Mpv::connect("/tmp/mpvsocket")?;
+    let mpv = Mpv::connect("/tmp/mpv.sock")?;
     let meta = mpv.get_metadata()?;
     println!("metadata: {:?}", meta);
     let playlist = mpv.get_playlist()?;
