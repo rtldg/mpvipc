@@ -53,7 +53,7 @@ pub enum MpvCommand {
         to: usize,
     },
     Observe {
-        id: usize,
+        id: isize,
         property: String
     },
     PlaylistNext,
@@ -66,7 +66,7 @@ pub enum MpvCommand {
         option: SeekOptions,
     },
     Stop,
-    Unobserve(usize),
+    Unobserve(isize),
 }
 
 #[derive(Debug)]
@@ -410,14 +410,14 @@ impl Mpv {
         self.run_command(MpvCommand::PlaylistNext)
     }
 
-    pub fn observe_property(&self, id: usize, property: &str) -> Result<(), Error> {
+    pub fn observe_property(&self, id: isize, property: &str) -> Result<(), Error> {
         self.run_command(MpvCommand::Observe {
             id: id,
             property: property.to_string(),
         })
     }
 
-    pub fn unobserve_property(&self, id: usize) -> Result<(), Error> {
+    pub fn unobserve_property(&self, id: isize) -> Result<(), Error> {
         self.run_command(MpvCommand::Unobserve(id))
     }
 

@@ -257,7 +257,7 @@ pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(
     }
 }
 
-pub fn observe_mpv_property(instance: &Mpv, id: &usize, property: &str) -> Result<(), Error> {
+pub fn observe_mpv_property(instance: &Mpv, id: &isize, property: &str) -> Result<(), Error> {
     let ipc_string = format!(
         "{{ \"command\": [\"observe_property\", {}, \"{}\"] }}\n",
         id, property
@@ -278,7 +278,7 @@ pub fn observe_mpv_property(instance: &Mpv, id: &usize, property: &str) -> Resul
     }
 }
 
-pub fn unobserve_mpv_property(instance: &Mpv, id: &usize) -> Result<(), Error> {
+pub fn unobserve_mpv_property(instance: &Mpv, id: &isize) -> Result<(), Error> {
     let ipc_string = format!("{{ \"command\": [\"unobserve_property\", {}] }}\n", id);
     match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
         Ok(feedback) => {

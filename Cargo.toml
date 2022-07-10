@@ -1,6 +1,6 @@
 [package]
 name = "mpvipc"
-version = "1.2.0"
+version = "1.2.1"
 authors = ["Jonas Frei <freijon@pm.me>"]
 description = "A small library which provides bindings to control existing mpv instances through sockets."
 license = "GPL-3.0"
