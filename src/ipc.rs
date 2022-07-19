@@ -237,14 +237,11 @@ pub fn set_mpv_property<T: TypeHandler>(
 }
 
 pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(), Error> {
-    let mut ipc_string = format!("{{ \"command\": [\"{}\"", command);
-    if args.len() > 0 {
-        for arg in args {
-            ipc_string.push_str(&format!(", \"{}\"", arg));
-        }
+    let mut ipc_string = format!(r#"{{ "command": ["{}""#, command);
+    for arg in args {
+        ipc_string.push_str(&format!(r#", "{}""#, arg));
     }
     ipc_string.push_str("] }\n");
-    ipc_string = ipc_string;
     match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
         Ok(feedback) => {
             if let Value::String(ref error) = feedback["error"] {
