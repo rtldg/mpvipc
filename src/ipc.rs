@@ -335,79 +335,88 @@ fn try_convert_property(name: &str, id: usize, data: MpvDataType) -> Event {
 }
 
 pub fn listen(instance: &mut Mpv) -> Result<Event, Error> {
-    let mut response = String::new();
-    instance.reader.read_line(&mut response).unwrap();
-    response = response.trim_end().to_string();
-    debug!("Event: {}", response);
+    let mut e;
+    // sometimes we get responses unrelated to events, so we read a new line until we receive one
+    // with an event field
+    let name = loop {
+        let mut response = String::new();
+        instance.reader.read_line(&mut response).unwrap();
+        response = response.trim_end().to_string();
+        debug!("Event: {}", response);
 
-    let e = serde_json::from_str::<Value>(&response)
-        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
+        e = serde_json::from_str::<Value>(&response)
+            .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
 
-    if let Value::String(ref name) = e["event"] {
-        let event = match name.as_str() {
-            "shutdown" => Event::Shutdown,
-            "start-file" => Event::StartFile,
-            "file-loaded" => Event::FileLoaded,
-            "seek" => Event::Seek,
-            "playback-restart" => Event::PlaybackRestart,
-            "idle" => Event::Idle,
-            "tick" => Event::Tick,
-            "video-reconfig" => Event::VideoReconfig,
-            "audio-reconfig" => Event::AudioReconfig,
-            "tracks-changed" => Event::TracksChanged,
-            "track-switched" => Event::TrackSwitched,
-            "pause" => Event::Pause,
-            "unpause" => Event::Unpause,
-            "metadata-update" => Event::MetadataUpdate,
-            "chapter-change" => Event::ChapterChange,
-            "end-file" => Event::EndFile,
-            "property-change" => {
-                let name = match e["name"] {
-                    Value::String(ref n) => Ok(n.to_string()),
-                    _ => Err(Error(ErrorCode::JsonContainsUnexptectedType)),
-                }?;
-
-                let id: usize = match e["id"] {
-                    Value::Number(ref n) => n.as_u64().unwrap() as usize,
-                    _ => 0,
-                };
-
-                let data: MpvDataType = match e["data"] {
-                    Value::String(ref n) => MpvDataType::String(n.to_string()),
-
-                    Value::Array(ref a) => {
-                        if name == "playlist".to_string() {
-                            MpvDataType::Playlist(Playlist(json_array_to_playlist(a)))
-                        } else {
-                            MpvDataType::Array(json_array_to_vec(a))
-                        }
-                    }
-
-                    Value::Bool(b) => MpvDataType::Bool(b),
-
-                    Value::Number(ref n) => {
-                        if n.is_u64() {
-                            MpvDataType::Usize(n.as_u64().unwrap() as usize)
-                        } else if n.is_f64() {
-                            MpvDataType::Double(n.as_f64().unwrap())
-                        } else {
-                            return Err(Error(ErrorCode::JsonContainsUnexptectedType));
-                        }
-                    }
-
-                    Value::Object(ref m) => MpvDataType::HashMap(json_map_to_hashmap(m)),
-
-                    Value::Null => MpvDataType::Null,
-                };
-
-                try_convert_property(name.as_ref(), id, data)
+        match e["event"] {
+            Value::String(ref name) => break name,
+            _ => {
+                // It was not an event - try again
+                debug!("Bad response: {:?}", response)
             }
-            _ => Event::Unimplemented,
-        };
-        Ok(event)
-    } else {
-        unreachable!();
-    }
+        }
+    };
+
+    let event = match name.as_str() {
+        "shutdown" => Event::Shutdown,
+        "start-file" => Event::StartFile,
+        "file-loaded" => Event::FileLoaded,
+        "seek" => Event::Seek,
+        "playback-restart" => Event::PlaybackRestart,
+        "idle" => Event::Idle,
+        "tick" => Event::Tick,
+        "video-reconfig" => Event::VideoReconfig,
+        "audio-reconfig" => Event::AudioReconfig,
+        "tracks-changed" => Event::TracksChanged,
+        "track-switched" => Event::TrackSwitched,
+        "pause" => Event::Pause,
+        "unpause" => Event::Unpause,
+        "metadata-update" => Event::MetadataUpdate,
+        "chapter-change" => Event::ChapterChange,
+        "end-file" => Event::EndFile,
+        "property-change" => {
+            let name = match e["name"] {
+                Value::String(ref n) => Ok(n.to_string()),
+                _ => Err(Error(ErrorCode::JsonContainsUnexptectedType)),
+            }?;
+
+            let id: usize = match e["id"] {
+                Value::Number(ref n) => n.as_u64().unwrap() as usize,
+                _ => 0,
+            };
+
+            let data: MpvDataType = match e["data"] {
+                Value::String(ref n) => MpvDataType::String(n.to_string()),
+
+                Value::Array(ref a) => {
+                    if name == "playlist".to_string() {
+                        MpvDataType::Playlist(Playlist(json_array_to_playlist(a)))
+                    } else {
+                        MpvDataType::Array(json_array_to_vec(a))
+                    }
+                }
+
+                Value::Bool(b) => MpvDataType::Bool(b),
+
+                Value::Number(ref n) => {
+                    if n.is_u64() {
+                        MpvDataType::Usize(n.as_u64().unwrap() as usize)
+                    } else if n.is_f64() {
+                        MpvDataType::Double(n.as_f64().unwrap())
+                    } else {
+                        return Err(Error(ErrorCode::JsonContainsUnexptectedType));
+                    }
+                }
+
+                Value::Object(ref m) => MpvDataType::HashMap(json_map_to_hashmap(m)),
+
+                Value::Null => MpvDataType::Null,
+            };
+
+            try_convert_property(name.as_ref(), id, data)
+        }
+        _ => Event::Unimplemented,
+    };
+    Ok(event)
 }
 
 pub fn listen_raw(instance: &mut Mpv) -> String {
