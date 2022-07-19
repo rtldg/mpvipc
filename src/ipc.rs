@@ -189,30 +189,35 @@ pub fn get_mpv_property<T: TypeHandler>(instance: &Mpv, property: &str) -> Resul
 
 pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String, Error> {
     let ipc_string = format!("{{ \"command\": [\"get_property\",\"{}\"] }}\n", property);
-    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
-        Ok(val) => {
-            if let Value::Object(map) = val {
-                if let Value::String(ref error) = map["error"] {
-                    if error == "success" && map.contains_key("data") {
-                        match map["data"] {
-                            Value::Bool(b) => Ok(b.to_string()),
-                            Value::Number(ref n) => Ok(n.to_string()),
-                            Value::String(ref s) => Ok(s.to_string()),
-                            Value::Array(ref array) => Ok(format!("{:?}", array)),
-                            Value::Object(ref map) => Ok(format!("{:?}", map)),
-                            _ => Err(Error(ErrorCode::UnsupportedType)),
-                        }
-                    } else {
-                        Err(Error(ErrorCode::MpvError(error.to_string())))
-                    }
-                } else {
-                    Err(Error(ErrorCode::UnexpectedValue))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
+    let val = serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string))
+        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
+
+    let map = if let Value::Object(map) = val {
+        Ok(map)
+    } else {
+        Err(Error(ErrorCode::UnexpectedValue))
+    }?;
+
+    let error = if let Value::String(ref error) = map["error"] {
+        Ok(error)
+    } else {
+        Err(Error(ErrorCode::UnexpectedValue))
+    }?;
+
+    if error == "success" && map.contains_key("data") {
+        match map["data"] {
+            Value::Bool(b) => Ok(b.to_string()),
+            Value::Number(ref n) => Ok(n.to_string()),
+            Value::String(ref s) => Ok(s.to_string()),
+            Value::Array(ref array) => Ok(format!("{:?}", array)),
+            Value::Object(ref map) => Ok(format!("{:?}", map)),
+            _ => Err(Error(ErrorCode::UnsupportedType)),
         }
-        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
+    } else {
+        // TODO: there is a bug here
+        // this could return MpvError("success") if error == "success" but the map doesn't contain
+        // data
+        Err(Error(ErrorCode::MpvError(error.to_string())))
     }
 }
 
