@@ -204,20 +204,19 @@ pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String,
         Err(Error(ErrorCode::UnexpectedValue))
     }?;
 
-    if error == "success" && map.contains_key("data") {
-        match map["data"] {
-            Value::Bool(b) => Ok(b.to_string()),
-            Value::Number(ref n) => Ok(n.to_string()),
-            Value::String(ref s) => Ok(s.to_string()),
-            Value::Array(ref array) => Ok(format!("{:?}", array)),
-            Value::Object(ref map) => Ok(format!("{:?}", map)),
-            _ => Err(Error(ErrorCode::UnsupportedType)),
-        }
+    let data = if error == "success" {
+        Ok(&map["data"])
     } else {
-        // TODO: there is a bug here
-        // this could return MpvError("success") if error == "success" but the map doesn't contain
-        // data
         Err(Error(ErrorCode::MpvError(error.to_string())))
+    }?;
+
+    match data {
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Number(ref n) => Ok(n.to_string()),
+        Value::String(ref s) => Ok(s.to_string()),
+        Value::Array(ref array) => Ok(format!("{:?}", array)),
+        Value::Object(ref map) => Ok(format!("{:?}", map)),
+        Value::Null => Err(Error(ErrorCode::MissingValue)),
     }
 }
 
