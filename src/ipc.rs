@@ -417,10 +417,6 @@ pub fn listen_raw(instance: &mut Mpv) -> String {
     let mut response = String::new();
     instance.reader.read_line(&mut response).unwrap();
     response.trim_end().to_string()
-    // let mut stream = &instance.0;
-    // let mut buffer = [0; 32];
-    // stream.read(&mut buffer[..]).unwrap();
-    // String::from_utf8_lossy(&buffer).into_owned()
 }
 
 fn send_command_sync(instance: &Mpv, command: &str) -> String {
