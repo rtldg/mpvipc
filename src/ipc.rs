@@ -189,30 +189,34 @@ pub fn get_mpv_property<T: TypeHandler>(instance: &Mpv, property: &str) -> Resul
 
 pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String, Error> {
     let ipc_string = format!("{{ \"command\": [\"get_property\",\"{}\"] }}\n", property);
-    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
-        Ok(val) => {
-            if let Value::Object(map) = val {
-                if let Value::String(ref error) = map["error"] {
-                    if error == "success" && map.contains_key("data") {
-                        match map["data"] {
-                            Value::Bool(b) => Ok(b.to_string()),
-                            Value::Number(ref n) => Ok(n.to_string()),
-                            Value::String(ref s) => Ok(s.to_string()),
-                            Value::Array(ref array) => Ok(format!("{:?}", array)),
-                            Value::Object(ref map) => Ok(format!("{:?}", map)),
-                            _ => Err(Error(ErrorCode::UnsupportedType)),
-                        }
-                    } else {
-                        Err(Error(ErrorCode::MpvError(error.to_string())))
-                    }
-                } else {
-                    Err(Error(ErrorCode::UnexpectedValue))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
-        }
-        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
+    let val = serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string))
+        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
+
+    let map = if let Value::Object(map) = val {
+        Ok(map)
+    } else {
+        Err(Error(ErrorCode::UnexpectedValue))
+    }?;
+
+    let error = if let Value::String(ref error) = map["error"] {
+        Ok(error)
+    } else {
+        Err(Error(ErrorCode::UnexpectedValue))
+    }?;
+
+    let data = if error == "success" {
+        Ok(&map["data"])
+    } else {
+        Err(Error(ErrorCode::MpvError(error.to_string())))
+    }?;
+
+    match data {
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Number(ref n) => Ok(n.to_string()),
+        Value::String(ref s) => Ok(s.to_string()),
+        Value::Array(ref array) => Ok(format!("{:?}", array)),
+        Value::Object(ref map) => Ok(format!("{:?}", map)),
+        Value::Null => Err(Error(ErrorCode::MissingValue)),
     }
 }
 
@@ -233,14 +237,11 @@ pub fn set_mpv_property<T: TypeHandler>(
 }
 
 pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(), Error> {
-    let mut ipc_string = format!("{{ \"command\": [\"{}\"", command);
-    if args.len() > 0 {
-        for arg in args {
-            ipc_string.push_str(&format!(", \"{}\"", arg));
-        }
+    let mut ipc_string = format!(r#"{{ "command": ["{}""#, command);
+    for arg in args {
+        ipc_string.push_str(&format!(r#", "{}""#, arg));
     }
     ipc_string.push_str("] }\n");
-    ipc_string = ipc_string;
     match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
         Ok(feedback) => {
             if let Value::String(ref error) = feedback["error"] {
@@ -334,139 +335,94 @@ fn try_convert_property(name: &str, id: usize, data: MpvDataType) -> Event {
 }
 
 pub fn listen(instance: &mut Mpv) -> Result<Event, Error> {
-    let mut response = String::new();
-    instance.reader.read_line(&mut response).unwrap();
-    response = response.trim_end().to_string();
-    debug!("Event: {}", response);
-    match serde_json::from_str::<Value>(&response) {
-        Ok(e) => {
-            if let Value::String(ref name) = e["event"] {
-                let event: Event;
-                match name.as_str() {
-                    "shutdown" => {
-                        event = Event::Shutdown;
-                    }
-                    "start-file" => {
-                        event = Event::StartFile;
-                    }
-                    "file-loaded" => {
-                        event = Event::FileLoaded;
-                    }
-                    "seek" => {
-                        event = Event::Seek;
-                    }
-                    "playback-restart" => {
-                        event = Event::PlaybackRestart;
-                    }
-                    "idle" => {
-                        event = Event::Idle;
-                    }
-                    "tick" => {
-                        event = Event::Tick;
-                    }
-                    "video-reconfig" => {
-                        event = Event::VideoReconfig;
-                    }
-                    "audio-reconfig" => {
-                        event = Event::AudioReconfig;
-                    }
-                    "tracks-changed" => {
-                        event = Event::TracksChanged;
-                    }
-                    "track-switched" => {
-                        event = Event::TrackSwitched;
-                    }
-                    "pause" => {
-                        event = Event::Pause;
-                    }
-                    "unpause" => {
-                        event = Event::Unpause;
-                    }
-                    "metadata-update" => {
-                        event = Event::MetadataUpdate;
-                    }
-                    "chapter-change" => {
-                        event = Event::ChapterChange;
-                    }
-                    "end-file" => {
-                        event = Event::EndFile;
-                    }
-                    "property-change" => {
-                        let name: String;
-                        let id: usize;
-                        let data: MpvDataType;
+    let mut e;
+    // sometimes we get responses unrelated to events, so we read a new line until we receive one
+    // with an event field
+    let name = loop {
+        let mut response = String::new();
+        instance.reader.read_line(&mut response).unwrap();
+        response = response.trim_end().to_string();
+        debug!("Event: {}", response);
 
-                        if let Value::String(ref n) = e["name"] {
-                            name = n.to_string();
-                        } else {
-                            return Err(Error(ErrorCode::JsonContainsUnexptectedType));
-                        }
+        e = serde_json::from_str::<Value>(&response)
+            .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
 
-                        if let Value::Number(ref n) = e["id"] {
-                            id = n.as_i64().unwrap() as usize;
-                        } else {
-                            id = 0;
-                        }
-
-                        match e["data"] {
-                            Value::String(ref n) => {
-                                data = MpvDataType::String(n.to_string());
-                            }
-
-                            Value::Array(ref a) => {
-                                if name == "playlist".to_string() {
-                                    data =
-                                        MpvDataType::Playlist(Playlist(json_array_to_playlist(a)));
-                                } else {
-                                    data = MpvDataType::Array(json_array_to_vec(a));
-                                }
-                            }
-
-                            Value::Bool(ref b) => {
-                                data = MpvDataType::Bool(*b);
-                            }
-
-                            Value::Number(ref n) => {
-                                if n.is_u64() {
-                                    data = MpvDataType::Usize(n.as_u64().unwrap() as usize);
-                                } else if n.is_f64() {
-                                    data = MpvDataType::Double(n.as_f64().unwrap());
-                                } else {
-                                    return Err(Error(ErrorCode::JsonContainsUnexptectedType));
-                                }
-                            }
-
-                            Value::Object(ref m) => {
-                                data = MpvDataType::HashMap(json_map_to_hashmap(m));
-                            }
-
-                            Value::Null => {
-                                data = MpvDataType::Null;
-                            }
-                        }
-
-                        event = try_convert_property(name.as_ref(), id, data);
-                    }
-                    _ => {
-                        event = Event::Unimplemented;
-                    }
-                };
-                return Ok(event);
+        match e["event"] {
+            Value::String(ref name) => break name,
+            _ => {
+                // It was not an event - try again
+                debug!("Bad response: {:?}", response)
             }
         }
-        Err(why) => return Err(Error(ErrorCode::JsonParseError(why.to_string()))),
-    }
-    unreachable!();
+    };
+
+    let event = match name.as_str() {
+        "shutdown" => Event::Shutdown,
+        "start-file" => Event::StartFile,
+        "file-loaded" => Event::FileLoaded,
+        "seek" => Event::Seek,
+        "playback-restart" => Event::PlaybackRestart,
+        "idle" => Event::Idle,
+        "tick" => Event::Tick,
+        "video-reconfig" => Event::VideoReconfig,
+        "audio-reconfig" => Event::AudioReconfig,
+        "tracks-changed" => Event::TracksChanged,
+        "track-switched" => Event::TrackSwitched,
+        "pause" => Event::Pause,
+        "unpause" => Event::Unpause,
+        "metadata-update" => Event::MetadataUpdate,
+        "chapter-change" => Event::ChapterChange,
+        "end-file" => Event::EndFile,
+        "property-change" => {
+            let name = match e["name"] {
+                Value::String(ref n) => Ok(n.to_string()),
+                _ => Err(Error(ErrorCode::JsonContainsUnexptectedType)),
+            }?;
+
+            let id: usize = match e["id"] {
+                Value::Number(ref n) => n.as_u64().unwrap() as usize,
+                _ => 0,
+            };
+
+            let data: MpvDataType = match e["data"] {
+                Value::String(ref n) => MpvDataType::String(n.to_string()),
+
+                Value::Array(ref a) => {
+                    if name == "playlist".to_string() {
+                        MpvDataType::Playlist(Playlist(json_array_to_playlist(a)))
+                    } else {
+                        MpvDataType::Array(json_array_to_vec(a))
+                    }
+                }
+
+                Value::Bool(b) => MpvDataType::Bool(b),
+
+                Value::Number(ref n) => {
+                    if n.is_u64() {
+                        MpvDataType::Usize(n.as_u64().unwrap() as usize)
+                    } else if n.is_f64() {
+                        MpvDataType::Double(n.as_f64().unwrap())
+                    } else {
+                        return Err(Error(ErrorCode::JsonContainsUnexptectedType));
+                    }
+                }
+
+                Value::Object(ref m) => MpvDataType::HashMap(json_map_to_hashmap(m)),
+
+                Value::Null => MpvDataType::Null,
+            };
+
+            try_convert_property(name.as_ref(), id, data)
+        }
+        _ => Event::Unimplemented,
+    };
+    Ok(event)
 }
 
 pub fn listen_raw(instance: &mut Mpv) -> String {
     let mut response = String::new();
     instance.reader.read_line(&mut response).unwrap();
     response.trim_end().to_string()
-    // let mut stream = &instance.0;
-    // let mut buffer = [0; 32];
-    // stream.read(&mut buffer[..]).unwrap();
-    // String::from_utf8_lossy(&buffer).into_owned()
 }
 
 fn send_command_sync(instance: &Mpv, command: &str) -> String {

@@ -54,7 +54,7 @@ pub enum MpvCommand {
     },
     Observe {
         id: isize,
-        property: String
+        property: String,
     },
     PlaylistNext,
     PlaylistPrev,
@@ -118,6 +118,7 @@ pub enum ErrorCode {
     JsonContainsUnexptectedType,
     UnexpectedResult,
     UnexpectedValue,
+    MissingValue,
     UnsupportedType,
     ValueDoesNotContainBool,
     ValueDoesNotContainF64,
@@ -190,6 +191,7 @@ impl Display for ErrorCode {
             }
             ErrorCode::UnexpectedResult => f.write_str("Unexpected result received"),
             ErrorCode::UnexpectedValue => f.write_str("Unexpected value received"),
+            ErrorCode::MissingValue => f.write_str("Missing value"),
             ErrorCode::UnsupportedType => f.write_str("Unsupported type received"),
             ErrorCode::ValueDoesNotContainBool => {
                 f.write_str("The received value is not of type \'std::bool\'")
@@ -486,9 +488,7 @@ impl Mpv {
                     },
                 ],
             ),
-            MpvCommand::Observe { id, property } => {
-                observe_mpv_property(self, &id, &property)
-            }
+            MpvCommand::Observe { id, property } => observe_mpv_property(self, &id, &property),
             MpvCommand::PlaylistClear => run_mpv_command(self, "playlist-clear", &[]),
             MpvCommand::PlaylistMove { from, to } => {
                 run_mpv_command(self, "playlist-move", &[&from.to_string(), &to.to_string()])
@@ -514,9 +514,7 @@ impl Mpv {
                 ],
             ),
             MpvCommand::Stop => run_mpv_command(self, "stop", &[]),
-            MpvCommand::Unobserve(id) => {
-                unobserve_mpv_property(self, &id)
-            }
+            MpvCommand::Unobserve(id) => unobserve_mpv_property(self, &id),
         }
     }
 
