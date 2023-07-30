@@ -414,6 +414,19 @@ pub fn listen(instance: &mut Mpv) -> Result<Event, Error> {
 
             try_convert_property(name.as_ref(), id, data)
         }
+        "client-message" => {
+            let args = match e["args"] {
+                Value::Array(ref a) => json_array_to_vec(a)
+                    .iter()
+                    .map(|arg| match arg {
+                        MpvDataType::String(s) => Ok(s.to_owned()),
+                        _ => Err(Error(ErrorCode::JsonContainsUnexptectedType)),
+                    })
+                    .collect::<Result<Vec<_>, _>>(),
+                _ => return Err(Error(ErrorCode::JsonContainsUnexptectedType)),
+            }?;
+            Event::ClientMessage { args }
+        }
         _ => Event::Unimplemented,
     };
     Ok(event)
