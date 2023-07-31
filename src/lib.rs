@@ -25,6 +25,7 @@ pub enum Event {
     PlaybackRestart,
     PropertyChange { id: usize, property: Property },
     ChapterChange,
+    ClientMessage { args: Vec<String> },
     Unimplemented,
 }
 
