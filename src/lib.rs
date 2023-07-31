@@ -704,9 +704,6 @@ impl Mpv {
     }
 
     pub fn toggle(&self) -> Result<(), Error> {
-        match get_mpv_property::<bool>(self, "pause") {
-            Ok(paused) => set_mpv_property(self, "pause", !paused),
-            Err(msg) => Err(msg),
-        }
+        run_mpv_command(self, "cycle", &["pause"])
     }
 }
