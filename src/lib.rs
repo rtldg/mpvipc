@@ -62,6 +62,11 @@ pub enum MpvCommand {
     PlaylistRemove(usize),
     PlaylistShuffle,
     Quit,
+    ScriptMessage(Vec<String>),
+    ScriptMessageTo {
+        target: String,
+        args: Vec<String>,
+    },
     Seek {
         seconds: f64,
         option: SeekOptions,
@@ -501,6 +506,16 @@ impl Mpv {
             }
             MpvCommand::PlaylistShuffle => run_mpv_command(self, "playlist-shuffle", &[]),
             MpvCommand::Quit => run_mpv_command(self, "quit", &[]),
+            MpvCommand::ScriptMessage(args) => {
+                let str_args: Vec<_> = args.iter().map(String::as_str).collect();
+                run_mpv_command(self, "script-message", &str_args)
+            }
+            MpvCommand::ScriptMessageTo { target, args } => {
+                let mut cmd_args: Vec<_> = vec![target.as_str()];
+                let mut str_args: Vec<_> = args.iter().map(String::as_str).collect();
+                cmd_args.append(&mut str_args);
+                run_mpv_command(self, "script-message-to", &cmd_args)
+            }
             MpvCommand::Seek { seconds, option } => run_mpv_command(
                 self,
                 "seek",
