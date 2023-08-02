@@ -1,6 +1,7 @@
 pub mod ipc;
 
 use ipc::*;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::io::{BufReader, Read};
@@ -270,25 +271,25 @@ pub trait SetPropertyTypeHandler<T> {
 
 impl SetPropertyTypeHandler<bool> for bool {
     fn set_property_generic(instance: &Mpv, property: &str, value: bool) -> Result<(), Error> {
-        set_mpv_property::<bool>(instance, property, value)
+        set_mpv_property(instance, property, json!(value))
     }
 }
 
 impl SetPropertyTypeHandler<String> for String {
     fn set_property_generic(instance: &Mpv, property: &str, value: String) -> Result<(), Error> {
-        set_mpv_property::<String>(instance, property, value)
+        set_mpv_property(instance, property, json!(value))
     }
 }
 
 impl SetPropertyTypeHandler<f64> for f64 {
     fn set_property_generic(instance: &Mpv, property: &str, value: f64) -> Result<(), Error> {
-        set_mpv_property::<f64>(instance, property, value)
+        set_mpv_property(instance, property, json!(value))
     }
 }
 
 impl SetPropertyTypeHandler<usize> for usize {
     fn set_property_generic(instance: &Mpv, property: &str, value: usize) -> Result<(), Error> {
-        set_mpv_property::<usize>(instance, property, value)
+        set_mpv_property(instance, property, json!(value))
     }
 }
 
@@ -430,7 +431,7 @@ impl Mpv {
     }
 
     pub fn pause(&self) -> Result<(), Error> {
-        set_mpv_property(self, "pause", true)
+        set_mpv_property(self, "pause", json!(true))
     }
 
     pub fn prev(&self) -> Result<(), Error> {
@@ -569,7 +570,7 @@ impl Mpv {
     }
 
     pub fn playlist_play_id(&self, id: usize) -> Result<(), Error> {
-        set_mpv_property(self, "playlist-pos", id)
+        set_mpv_property(self, "playlist-pos", json!(id))
     }
 
     pub fn playlist_play_next(&self, id: usize) -> Result<(), Error> {
@@ -611,7 +612,7 @@ impl Mpv {
                 Err(msg) => return Err(msg),
             },
         }
-        set_mpv_property(self, "loop-file", enabled)
+        set_mpv_property(self, "loop-file", json!(enabled))
     }
 
     pub fn set_loop_playlist(&self, option: Switch) -> Result<(), Error> {
@@ -631,7 +632,7 @@ impl Mpv {
                 Err(msg) => return Err(msg),
             },
         }
-        set_mpv_property(self, "loop-playlist", enabled)
+        set_mpv_property(self, "loop-playlist", json!(enabled))
     }
 
     pub fn set_mute(&self, option: Switch) -> Result<(), Error> {
@@ -646,7 +647,7 @@ impl Mpv {
                 Err(msg) => return Err(msg),
             },
         }
-        set_mpv_property(self, "mute", enabled)
+        set_mpv_property(self, "mute", json!(enabled))
     }
 
     /// # Description
@@ -685,14 +686,16 @@ impl Mpv {
         match get_mpv_property::<f64>(self, "speed") {
             Ok(speed) => match option {
                 NumberChangeOptions::Increase => {
-                    set_mpv_property(self, "speed", speed + input_speed)
+                    set_mpv_property(self, "speed", json!(speed + input_speed))
                 }
 
                 NumberChangeOptions::Decrease => {
-                    set_mpv_property(self, "speed", speed - input_speed)
+                    set_mpv_property(self, "speed", json!(speed - input_speed))
                 }
 
-                NumberChangeOptions::Absolute => set_mpv_property(self, "speed", input_speed),
+                NumberChangeOptions::Absolute => {
+                    set_mpv_property(self, "speed", json!(input_speed))
+                }
             },
             Err(msg) => Err(msg),
         }
@@ -702,14 +705,16 @@ impl Mpv {
         match get_mpv_property::<f64>(self, "volume") {
             Ok(volume) => match option {
                 NumberChangeOptions::Increase => {
-                    set_mpv_property(self, "volume", volume + input_volume)
+                    set_mpv_property(self, "volume", json!(volume + input_volume))
                 }
 
                 NumberChangeOptions::Decrease => {
-                    set_mpv_property(self, "volume", volume - input_volume)
+                    set_mpv_property(self, "volume", json!(volume - input_volume))
                 }
 
-                NumberChangeOptions::Absolute => set_mpv_property(self, "volume", input_volume),
+                NumberChangeOptions::Absolute => {
+                    set_mpv_property(self, "volume", json!(input_volume))
+                }
             },
             Err(msg) => Err(msg),
         }

@@ -1,6 +1,6 @@
 use super::*;
 use log::{debug, warn};
-use serde_json::{self, Value};
+use serde_json::json;
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -179,17 +179,16 @@ impl TypeHandler for Vec<PlaylistEntry> {
 }
 
 pub fn get_mpv_property<T: TypeHandler>(instance: &Mpv, property: &str) -> Result<T, Error> {
-    let ipc_string = format!("{{ \"command\": [\"get_property\",\"{}\"] }}\n", property);
-
-    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
+    let ipc_string = json!({"command": ["get_property", property]});
+    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
         Ok(val) => T::get_value(val),
         Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
     }
 }
 
 pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String, Error> {
-    let ipc_string = format!("{{ \"command\": [\"get_property\",\"{}\"] }}\n", property);
-    let val = serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string))
+    let ipc_string = json!({"command": ["get_property", property]});
+    let val = serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string))
         .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
 
     let map = if let Value::Object(map) = val {
@@ -220,29 +219,27 @@ pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String,
     }
 }
 
-pub fn set_mpv_property<T: TypeHandler>(
-    instance: &Mpv,
-    property: &str,
-    value: T,
-) -> Result<(), Error> {
-    let ipc_string = format!(
-        "{{ \"command\": [\"set_property\", \"{}\", {}] }}\n",
-        property,
-        value.as_string()
-    );
-    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
+pub fn set_mpv_property(instance: &Mpv, property: &str, value: Value) -> Result<(), Error> {
+    let ipc_string = json!({
+        "command": ["set_property", property, value]
+    });
+
+    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
         Ok(_) => Ok(()),
         Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
     }
 }
 
 pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(), Error> {
-    let mut ipc_string = format!(r#"{{ "command": ["{}""#, command);
-    for arg in args {
-        ipc_string.push_str(&format!(r#", "{}""#, arg));
+    let mut ipc_string = json!({
+        "command": [command]
+    });
+    if let Value::Array(args_array) = &mut ipc_string["command"] {
+        for arg in args {
+            args_array.push(json!(arg));
+        }
     }
-    ipc_string.push_str("] }\n");
-    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
+    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
         Ok(feedback) => {
             if let Value::String(ref error) = feedback["error"] {
                 if error == "success" {
@@ -259,11 +256,10 @@ pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(
 }
 
 pub fn observe_mpv_property(instance: &Mpv, id: &isize, property: &str) -> Result<(), Error> {
-    let ipc_string = format!(
-        "{{ \"command\": [\"observe_property\", {}, \"{}\"] }}\n",
-        id, property
-    );
-    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
+    let ipc_string = json!({
+        "command": ["observe_property", id, property]
+    });
+    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
         Ok(feedback) => {
             if let Value::String(ref error) = feedback["error"] {
                 if error == "success" {
@@ -280,8 +276,10 @@ pub fn observe_mpv_property(instance: &Mpv, id: &isize, property: &str) -> Resul
 }
 
 pub fn unobserve_mpv_property(instance: &Mpv, id: &isize) -> Result<(), Error> {
-    let ipc_string = format!("{{ \"command\": [\"unobserve_property\", {}] }}\n", id);
-    match serde_json::from_str::<Value>(&send_command_sync(instance, &ipc_string)) {
+    let ipc_string = json!({
+        "command": ["unobserve_property", id]
+    });
+    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
         Ok(feedback) => {
             if let Value::String(ref error) = feedback["error"] {
                 if error == "success" {
@@ -438,12 +436,13 @@ pub fn listen_raw(instance: &mut Mpv) -> String {
     response.trim_end().to_string()
 }
 
-fn send_command_sync(instance: &Mpv, command: &str) -> String {
-    let mut stream = &instance.stream;
-    match stream.write_all(command.as_bytes()) {
+fn send_command_sync(instance: &Mpv, command: Value) -> String {
+    let stream = &instance.stream;
+    match serde_json::to_writer(stream, &command) {
         Err(why) => panic!("Error: Could not write to socket: {}", why),
         Ok(_) => {
-            debug!("Command: {}", command.trim_end());
+            let mut stream = stream;
+            stream.write_all(b"\n").unwrap();
             let mut response = String::new();
             {
                 let mut reader = BufReader::new(stream);
