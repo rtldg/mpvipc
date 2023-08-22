@@ -40,7 +40,7 @@ fn main() {
 }
 ```
 
-For a more extensive example and proof of concept, see project [mpvc](https://gitlab.com/mpv-ipc/mpvc-rs).
+For a more extensive example and proof of concept, see project [mpvc](https://gitlab.com/mpv-ipc/mpvc).
 
 ## Bugs / Ideas
 
