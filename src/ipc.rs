@@ -437,11 +437,10 @@ pub fn listen_raw(instance: &mut Mpv) -> String {
 }
 
 fn send_command_sync(instance: &Mpv, command: Value) -> String {
-    let stream = &instance.stream;
-    match serde_json::to_writer(stream, &command) {
+    let mut stream = clone_LocalSocketStream(&instance.stream);
+    match serde_json::to_writer(&mut stream, &command) {
         Err(why) => panic!("Error: Could not write to socket: {}", why),
         Ok(_) => {
-            let mut stream = stream;
             stream.write_all(b"\n").unwrap();
             let mut response = String::new();
             {
@@ -450,6 +449,7 @@ fn send_command_sync(instance: &Mpv, command: Value) -> String {
                     response.clear();
                     reader.read_line(&mut response).unwrap();
                 }
+                core::mem::forget(reader.into_inner());
             }
             debug!("Response: {}", response.trim_end());
             response

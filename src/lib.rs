@@ -4,8 +4,9 @@ use ipc::*;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fmt::{self, Display};
-use std::io::{BufReader, Read};
-use std::os::unix::net::UnixStream;
+use std::io::BufReader;
+use std::os::windows::io::{AsRawHandle, FromRawHandle};
+use interprocess::local_socket::LocalSocketStream;
 
 #[derive(Debug)]
 pub enum Event {
@@ -136,8 +137,8 @@ pub enum ErrorCode {
 }
 
 pub struct Mpv {
-    stream: UnixStream,
-    reader: BufReader<UnixStream>,
+    stream: LocalSocketStream,
+    reader: BufReader<LocalSocketStream>,
     name: String,
 }
 #[derive(Debug)]
@@ -157,10 +158,19 @@ impl fmt::Debug for Mpv {
     }
 }
 
+#[allow(non_snake_case)]
+pub fn clone_LocalSocketStream(stream: &LocalSocketStream) -> LocalSocketStream {
+    #[cfg(windows)]
+    unsafe { LocalSocketStream::from_raw_handle(stream.as_raw_handle()) }
+    #[cfg(unix)]
+    unsafe { LocalSocketStream::from_raw_fd(stream.as_raw_fd()) }
+}
+
+// unsafe
 impl Clone for Mpv {
     fn clone(&self) -> Self {
-        let stream = self.stream.try_clone().expect("cloning UnixStream");
-        let cloned_stream = stream.try_clone().expect("cloning UnixStream");
+        let stream = clone_LocalSocketStream(&self.stream);
+        let cloned_stream = clone_LocalSocketStream(&self.stream);
         Mpv {
             stream,
             reader: BufReader::new(cloned_stream),
@@ -169,8 +179,8 @@ impl Clone for Mpv {
     }
 
     fn clone_from(&mut self, source: &Self) {
-        let stream = source.stream.try_clone().expect("cloning UnixStream");
-        let cloned_stream = stream.try_clone().expect("cloning UnixStream");
+        let stream = clone_LocalSocketStream(&self.stream);
+        let cloned_stream = clone_LocalSocketStream(&self.stream);
         *self = Mpv {
             stream,
             reader: BufReader::new(cloned_stream),
@@ -295,9 +305,9 @@ impl SetPropertyTypeHandler<usize> for usize {
 
 impl Mpv {
     pub fn connect(socket: &str) -> Result<Mpv, Error> {
-        match UnixStream::connect(socket) {
+        match LocalSocketStream::connect(socket) {
             Ok(stream) => {
-                let cloned_stream = stream.try_clone().expect("cloning UnixStream");
+                let cloned_stream = clone_LocalSocketStream(&stream);
                 return Ok(Mpv {
                     stream,
                     reader: BufReader::new(cloned_stream),
@@ -309,6 +319,7 @@ impl Mpv {
     }
 
     pub fn disconnect(&self) {
+        /*
         let mut stream = &self.stream;
         stream
             .shutdown(std::net::Shutdown::Both)
@@ -317,9 +328,10 @@ impl Mpv {
         for _ in 0..stream.bytes().count() {
             stream.read(&mut buffer[..]).unwrap();
         }
+        */
     }
 
-    pub fn get_stream_ref(&self) -> &UnixStream {
+    pub fn get_stream_ref(&self) -> &LocalSocketStream {
         &self.stream
     }
 
