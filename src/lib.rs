@@ -87,6 +87,11 @@ pub enum MpvCommand {
     },
     Stop,
     Unobserve(isize),
+    ShowText {
+        text: String,
+        duration_ms: Option<i32>,
+        level: Option<u32>,
+    },
 }
 
 #[derive(Debug)]
@@ -575,6 +580,14 @@ impl Mpv {
             ),
             MpvCommand::Stop => run_mpv_command(self, "stop", &[]),
             MpvCommand::Unobserve(id) => unobserve_mpv_property(self, &id),
+            MpvCommand::ShowText { text, duration_ms, level }=> {
+                let mut args = vec![text, duration_ms.unwrap_or(-1).to_string()];
+                if let Some(level) = level {
+                    args.push(level.to_string());
+                }
+                let str_args: Vec<_> = args.iter().map(String::as_str).collect();
+                run_mpv_command(self, "show-text", &str_args)
+            },
         }
     }
 
