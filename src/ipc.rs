@@ -1,10 +1,7 @@
 use super::*;
 use log::{debug, warn};
 use serde_json::json;
-use std::collections::HashMap;
 use std::io::prelude::*;
-use std::io::BufReader;
-use std::iter::Iterator;
 
 #[derive(Debug)]
 pub struct PlaylistEntry {
