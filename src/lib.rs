@@ -569,6 +569,13 @@ impl Mpv {
     pub fn run_command_raw(&self, command: &str, args: &[&str]) -> Result<(), Error> {
         run_mpv_command(self, command, args)
     }
+    /// Run a custom command.
+    /// This should only be used if the desired command is not implemented
+    /// with [MpvCommand].
+    /// For when you want to pass [Input Command Prefixes](https://mpv.io/manual/master/#input-command-prefixes).
+    pub fn run_command_raw2(&self, command: &[&str], args: &[&str]) -> Result<(), Error> {
+        run_mpv_command2(self, command, args)
+    }
 
     pub fn playlist_add(
         &self,
