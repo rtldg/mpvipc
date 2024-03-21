@@ -231,8 +231,12 @@ pub fn set_mpv_property(instance: &Mpv, property: &str, value: Value) -> Result<
 }
 
 pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(), Error> {
+    run_mpv_command2(instance, &[command], args)
+}
+
+pub fn run_mpv_command2(instance: &Mpv, command: &[&str], args: &[&str]) -> Result<(), Error> {
     let mut ipc_string = json!({
-        "command": [command]
+        "command": command
     });
     if let Value::Array(args_array) = &mut ipc_string["command"] {
         for arg in args {
