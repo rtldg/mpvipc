@@ -5,7 +5,10 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::io::BufReader;
+#[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, FromRawHandle};
+#[cfg(unix)]
+use std::os::fd::{AsRawFd, FromRawFd};
 use interprocess::local_socket::LocalSocketStream;
 
 #[derive(Debug)]
