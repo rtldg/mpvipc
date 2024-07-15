@@ -311,6 +311,11 @@ fn try_convert_property(name: &str, id: usize, data: MpvDataType) -> Event {
             MpvDataType::Null => Property::PlaybackTime(None),
             _ => unimplemented!(),
         },
+        "audio-pts" => match data {
+            MpvDataType::Double(value) => Property::AudioPts(Some(value)),
+            MpvDataType::Null => Property::AudioPts(None),
+            _ => unimplemented!(),
+        },
         "duration" => match data {
             MpvDataType::Double(value) => Property::Duration(Some(value)),
             MpvDataType::Null => Property::Duration(None),

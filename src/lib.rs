@@ -35,6 +35,7 @@ pub enum Property {
     Path(Option<String>),
     Pause(bool),
     PlaybackTime(Option<f64>),
+    AudioPts(Option<f64>),
     Duration(Option<f64>),
     Metadata(Option<HashMap<String, MpvDataType>>),
     Unknown { name: String, data: MpvDataType },
