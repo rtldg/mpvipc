@@ -32,10 +32,17 @@ pub enum Event {
 
 #[derive(Debug)]
 pub enum Property {
+    /// "path"
     Path(Option<String>),
+    /// "pause"
     Pause(bool),
+    /// "playback-time"
     PlaybackTime(Option<f64>),
+    /// "audio-pts"
+    AudioPts(Option<f64>),
+    /// "duration"
     Duration(Option<f64>),
+    /// "metadata"
     Metadata(Option<HashMap<String, MpvDataType>>),
     Unknown { name: String, data: MpvDataType },
 }
