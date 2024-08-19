@@ -442,15 +442,15 @@ pub fn listen_raw(instance: &mut Mpv) -> String {
 }
 
 fn send_command_sync(instance: &Mpv, command: Value) -> String {
-    let stream = &instance.stream;
-    match serde_json::to_writer(stream, &command) {
+    let source = &instance.source;
+    match serde_json::to_writer(source, &command) {
         Err(why) => panic!("Error: Could not write to socket: {}", why),
         Ok(_) => {
-            let mut stream = stream;
-            stream.write_all(b"\n").unwrap();
+            let mut source = source;
+            source.write_all(b"\n").unwrap();
             let mut response = String::new();
             {
-                let mut reader = BufReader::new(stream);
+                let mut reader = BufReader::new(source);
                 while !response.contains("\"error\":") {
                     response.clear();
                     reader.read_line(&mut response).unwrap();

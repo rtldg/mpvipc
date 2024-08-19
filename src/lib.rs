@@ -4,8 +4,11 @@ use ipc::*;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fmt::{self, Display};
-use std::io::{BufReader, Read};
-use std::os::unix::net::UnixStream;
+#[cfg(windows)]
+use std::fs::File;
+use std::io::BufReader;
+#[cfg(unix)]
+use std::{io::Read, os::unix::net::UnixStream};
 
 #[derive(Debug)]
 pub enum Event {
@@ -44,7 +47,10 @@ pub enum Property {
     Duration(Option<f64>),
     /// "metadata"
     Metadata(Option<HashMap<String, MpvDataType>>),
-    Unknown { name: String, data: MpvDataType },
+    Unknown {
+        name: String,
+        data: MpvDataType,
+    },
 }
 
 pub enum MpvCommand {
@@ -142,9 +148,15 @@ pub enum ErrorCode {
     ValueDoesNotContainUsize,
 }
 
+#[cfg(unix)]
+type Source = UnixStream;
+
+#[cfg(windows)]
+type Source = File;
+
 pub struct Mpv {
-    stream: UnixStream,
-    reader: BufReader<UnixStream>,
+    source: Source,
+    reader: BufReader<Source>,
     name: String,
 }
 #[derive(Debug)]
@@ -166,22 +178,22 @@ impl fmt::Debug for Mpv {
 
 impl Clone for Mpv {
     fn clone(&self) -> Self {
-        let stream = self.stream.try_clone().expect("cloning UnixStream");
-        let cloned_stream = stream.try_clone().expect("cloning UnixStream");
+        let source = self.source.try_clone().expect("cloning UnixStream");
+        let cloned_source = source.try_clone().expect("cloning UnixStream");
         Mpv {
-            stream,
-            reader: BufReader::new(cloned_stream),
+            source,
+            reader: BufReader::new(cloned_source),
             name: self.name.clone(),
         }
     }
 
-    fn clone_from(&mut self, source: &Self) {
-        let stream = source.stream.try_clone().expect("cloning UnixStream");
-        let cloned_stream = stream.try_clone().expect("cloning UnixStream");
+    fn clone_from(&mut self, cloned: &Self) {
+        let source = cloned.source.try_clone().expect("cloning UnixStream");
+        let cloned_source = source.try_clone().expect("cloning UnixStream");
         *self = Mpv {
-            stream,
-            reader: BufReader::new(cloned_stream),
-            name: source.name.clone(),
+            source,
+            reader: BufReader::new(cloned_source),
+            name: cloned.name.clone(),
         }
     }
 }
@@ -302,12 +314,26 @@ impl SetPropertyTypeHandler<usize> for usize {
 
 impl Mpv {
     pub fn connect(socket: &str) -> Result<Mpv, Error> {
+        #[cfg(unix)]
         match UnixStream::connect(socket) {
-            Ok(stream) => {
-                let cloned_stream = stream.try_clone().expect("cloning UnixStream");
+            Ok(source) => {
+                let cloned_source = source.try_clone().expect("cloning UnixStream");
                 return Ok(Mpv {
-                    stream,
-                    reader: BufReader::new(cloned_stream),
+                    source,
+                    reader: BufReader::new(cloned_source),
+                    name: String::from(socket),
+                });
+            }
+            Err(internal_error) => Err(Error(ErrorCode::ConnectError(internal_error.to_string()))),
+        }
+
+        #[cfg(windows)]
+        match File::open(socket) {
+            Ok(source) => {
+                let cloned_source = source.try_clone().expect("cloning File");
+                return Ok(Mpv {
+                    source,
+                    reader: BufReader::new(cloned_source),
                     name: String::from(socket),
                 });
             }
@@ -315,8 +341,9 @@ impl Mpv {
         }
     }
 
+    #[cfg(unix)]
     pub fn disconnect(&self) {
-        let mut stream = &self.stream;
+        let mut stream = &self.source;
         stream
             .shutdown(std::net::Shutdown::Both)
             .expect("socket disconnect");
@@ -326,8 +353,17 @@ impl Mpv {
         }
     }
 
+    #[cfg(windows)]
+    pub fn disconnect(&self) {}
+
+    #[cfg(unix)]
+    #[deprecated(since = "1.4.0", note = "")]
     pub fn get_stream_ref(&self) -> &UnixStream {
-        &self.stream
+        &self.source
+    }
+
+    pub fn get_source_ref(&self) -> &Source {
+        &self.source
     }
 
     pub fn get_metadata(&self) -> Result<HashMap<String, MpvDataType>, Error> {
