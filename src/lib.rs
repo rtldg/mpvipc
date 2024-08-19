@@ -357,7 +357,7 @@ impl Mpv {
     pub fn disconnect(&self) {}
 
     #[cfg(unix)]
-    #[deprecated(since = "1.4.0", note = "")]
+    #[deprecated(since = "1.4.0", note = "Please use `Mpv::get_source_ref` instead")]
     pub fn get_stream_ref(&self) -> &UnixStream {
         &self.source
     }
