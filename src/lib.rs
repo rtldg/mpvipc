@@ -333,7 +333,7 @@ impl Mpv {
         }
 
         #[cfg(windows)]
-        match File::open(socket) {
+        match std::fs::OpenOptions::new().read(true).write(true).open(socket) {
             Ok(source) => {
                 let cloned_source = source.try_clone().expect("cloning File");
                 return Ok(Mpv {
